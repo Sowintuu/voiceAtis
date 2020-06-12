@@ -2,23 +2,18 @@
 Reads an ATIS from IVAO using voice generation.
 
 ## Requirements
-* Python 2.7 - 32 bit (due to pyuipc incompatibility with Python 3 and 64 bit)
-* pywin32
-* XPlane with [XPUIPC](http://fsacars.com/downloads/xpuipc/) or MFS, P3D with [FSUIPC](http://www.schiratti.com/dowson.html)
+* XPlane with [XPUIPC](http://fsacars.com/downloads/xpuipc/) **-or-** 
+* FSX, P3D with [FSUIPC](http://www.schiratti.com/dowson.html)
     * P3D not tested yet
-* Windows
-    * XPUIPC currently not working with Linux and Mac
 
 ## Installation
-* Get the latest python 2.7 ([Python releases](https://www.python.org/downloads/))
-* Install the latest pywin32 release ([pywin32 releases](https://github.com/mhammond/pywin32/releases))
-    * filename: `pywin32-xxx.win32-py2.7.exe`
-    * Install with the installer, not using pip!
-* Run `pip install voiceAtis`
+* Get the latest release from the [releases tab](https://github.com/Sowintuu/voiceAtis/releases).
+* Unzip the folder.
 
 ## Usage
 * Start your sim and start a flight.
-* Start the script "voiceAtis.py" (`<Python>\Lib\site-packages\voiceAtis`)
+* Start the voiceAtis.exe file in the unziped folder.
+   * **Note that you must start the .exe as admin if you have started your sim as admin!**
 * Tune the ATIS frequency of the airport where you are parking.
    * Don't forget to activate receive mode of the radio (COM1 or COM2)
 * You should hear the ATIS now, if:
@@ -61,10 +56,23 @@ Also instructions to disable the standard ATIS of the simulator are highly appre
     * No trend
     * No visibility directions
     * No runway condition
-* No comments of ivac 2 atis
+* IvAc 2 support discontinued
+   * Reading ATIS from IvAc 2 works. However there are bugs and this wont be improved.
+   * Remarks of ivac 2 stations will not be read.
 * X-Plane: Detection of active radio not accurate
 * Sometimes airports have more than 1 ATIS frequency (e.g. EDDF or LOWW, for departure and arrival)
     * You might have to try all frequencies to find the one working.
+    * Check [ourairports.com](http://ourairports.com) for the (real world) frequencies.
+
+## Build
+### Requirements
+* Python 3.8 - 32 bit (due to pyuipc incompatibility with 64 bit)
+* pywin32
+
+### Installation
+* Get the latest python 3.8 ([Python releases](https://www.python.org/downloads/))
+* Install the latest pywin32 release (`pip install pywin32`)
+* Run `pip install voiceAtis`
 
 ## Used packages and Copyright
 ### python-metar
@@ -126,6 +134,16 @@ Behind the fun and features, OurAirports exists primarily as a public good. When
 See the [Credits](http://ourairports.com/about.html#credits) for a list of contributers.
 
 ## Changelog
+## version 0.2.1 - 12.06.2020
+* Small fixes for first standalone release
+
+### version 0.2.0 - 12.06.2020
+* Ported to python 3.8
+* Added Aurora support
+* Complete rework of runway parse logic
+* Termination of IvAc 2 support
+* Minor fixes
+
 ### version 0.1.6 - 24.12.2018
 * Fix: Using COM1 frequency
 * Tested with FSX
