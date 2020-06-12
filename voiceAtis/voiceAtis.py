@@ -17,28 +17,67 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <https://www.gnu.org/licenses/>.
 #==============================================================================
+# Version - 0.2.0 - Changlog > README.md
+#==============================================================================
+# Sample ATIS
+# 0 - Aurora
+#0    eu17.ts.ivao.aero/EDDM_TWR
+#1    Muenchen Tower
+#2     Information GOLF  recorded at 2101z
+#3    EDDM 112050Z 36002KT CAVOK 13/12 Q1009 NOSIG
+#4    ARR RWY 26 L/R / DEP RWY 26L/R / TRL FL70 / TA 5000ft
+#5    CONFIRM ATIS INFO GOLF  on initial contact
+#
+#0    eu17.ts.ivao.aero/EDDH_TWR
+#1    Hamburg Tower
+#2     Information FOXTROT  recorded at 2103z
+#3    EDDH 112050Z 04008KT 010V070 9999 BKN007 15/14 Q1013 BECMG BKN004
+#4    ARR RWY 15 / DEP RWY 15 / TRL FL070 / TA 5000ft
+#5    RMK DEPARTURE FREQUENCY 122.800
+#6    CONFIRM ATIS INFO FOXTROT  on initial contact
 
-from __future__ import division
+#------------------------------------------------------------------------------
+# 1 - IvAc 1
+#0    eu16.ts.ivao.aero/EDDF_A_GND
+#1    Frankfurt Apron information DELTA recorded at 2104z
+#2     EDDF 112050Z 07003KT 9999 FEW020 15/13 Q1010 NOSIG 
+#3    ARR RWY 07R/07L / DEP RWY 07C/18 / TRL FL060 / TA 5000FT
+#4    CONFIRM ATIS INFO DELTA on initial contact
+#
+#0 eu16.ts.ivao.aero/EDDL_TWR
+#1    Dusseldorf Tower information HOTEL recorded at 2104z
+#2     EDDL 112050Z 07003KT CAVOK 17/13 Q1010 NOSIG 
+#3    ARR RWY 05R / DEP RWY 05R / TRL FL070 / TA 5000FT
+#4    Departure Frequency 122.800
+#5    CONFIRM ATIS INFO HOTEL on initial contact
+#------------------------------------------------------------------------------
+# 2 - IvAc 2
+#0    eu4.ts.ivao.aero/EGSS_GND
+#1    EGSS ARR/DEP ATIS H 2103Z
+#2    ARR RWY 04
+#3    ARR RWY 04
+#4    DEP RWY 04
+#5    DEP RWY 04
+#6    TA 6000 / TRL 75
+#7    METAR EGSS 112050Z AUTO 02009KT 9999 OVC006 13/12 Q1010
+
+#==============================================================================
+
+
 
 # Import built-ins
 import os
-import sys
 import re
 import time
-import urllib
-import urllib2
+import shutil
+import urllib.request
 import gzip
-from contextlib import closing
 from math import floor
 import warnings
 
-# Set encoding
-reload(sys)
-sys.setdefaultencoding('iso-8859-15')  # @UndefinedVariable
-
 # Import pip packages (except failure with debug mode).
 try:
-    import pyttsx
+    import pyttsx3 as pyttsx
     pyttsxImported = True
 except ImportError:
     pyttsxImported = False
@@ -53,17 +92,22 @@ except ImportError:
 
 from metar.Metar import Metar
 from aviationFormula.aviationFormula import gcDistanceNm
-# from aviationFormula import gcDistanceNm
 
 # Import own packages.
 from VaLogger import VaLogger
-from voiceAtisUtil import parseVoiceInt, parseVoiceString, CHAR_TABLE
+from voiceAtisUtil import parseVoiceInt, parseVoiceString, CHAR_TABLE, RWY_TABLE
+
+# Set encoding type.
+ENCODING_TYPE = 'utf-8'
+
 
 ## Main Class of VoiceAtis.
 # Run constructor to run the program.
 class VoiceAtis(object):
     
     STATION_SUFFIXES = ['TWR','APP','GND','DEL','DEP']
+    STATION_SUFFIXES_DEP = ['DEL','GND','TWR','DEP','APP']
+    STATION_SUFFIXES_ARR = ['APP','TWR','GND','DEL','DEP']
     
     SPEECH_RATE = 150
     
@@ -77,6 +121,7 @@ class VoiceAtis(object):
                (0x0560,'l'),    # ac Latitude
                (0x0568,'l'),    # ac Longitude
               ]
+    # Add agl, (ground speed).
     
     WHAZZUP_URL = 'http://api.ivao.aero/getdata/whazzup/whazzup.txt.gz'
     WHAZZUP_METAR_URL = 'http://wx.ivao.aero/metar.php'
@@ -87,9 +132,9 @@ class VoiceAtis(object):
     COM1_FREQUENCY_DEBUG = 199.99
     
     # EDDS
-#     COM2_FREQUENCY_DEBUG = 126.12
-#     LAT_DEBUG = 48.687
-#     LON_DEBUG = 9.205
+    COM2_FREQUENCY_DEBUG = 126.12
+    LAT_DEBUG = 48.687
+    LON_DEBUG = 9.205
 
     # EDDM
 #     COM2_FREQUENCY_DEBUG = 123.12
@@ -97,17 +142,17 @@ class VoiceAtis(object):
 #     LON_DEBUG = 11.786
 
     # LIRF
-    COM2_FREQUENCY_DEBUG = 121.85
-    LAT_DEBUG = 41.8
-    LON_DEBUG = 12.2
+#     COM2_FREQUENCY_DEBUG = 121.85
+#     LAT_DEBUG = 41.8
+#     LON_DEBUG = 12.2
     
     # LIBR
-    COM2_FREQUENCY_DEBUG = 121.85
-    LAT_DEBUG = 41.8
-    LON_DEBUG = 12.2
-
-
-    WHAZZUP_TEXT_DEBUG = r'H:\My Documents\Sonstiges\voiceAtis\whazzup_1.txt'
+#     COM2_FREQUENCY_DEBUG = 121.85
+#     LAT_DEBUG = 41.8
+#     LON_DEBUG = 12.2
+    
+    
+    WHAZZUP_TEXT_DEBUG = r'C:\gitserver\voiceAtis\archive\whazzup.txt'
     
     ## Setup the VoiceAtis object.
     # Inits logger.
@@ -116,9 +161,12 @@ class VoiceAtis(object):
         #TODO: Remove the debug code when tested properly.
         #TODO: Improve logged messages.
         #TODO: Create GUI.
+        #TODO: Split 4000 to 4 1000 -> four thousand
+        #TODO: Also check NAV1+NAV2 (ATIS can be broadcasted there as well).
         
         # Process optional arguments.
         self.debug = optional.get('Debug',debug)
+        self.logLvl = optional.get('LogLevel','debug')
         
         # Get file path.
         self.rootDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -139,11 +187,17 @@ class VoiceAtis(object):
         if self.debug:
             self.logger.info('Debug mode on.')
             self.logger.setLevel(ConsoleLevel='debug')
+        else:
+            self.logger.setLevel(ConcoleLevel=self.logLvl)
         
     ## Establishs pyuipc connection.
     # Return 'True' on success or if pyuipc not installed.
     # Return 'False' on fail.
     def connectPyuipc(self):
+        self.pyuipcConnection = pyuipc.open(0)
+        self.pyuipcOffsets = pyuipc.prepare_data(self.OFFSETS)
+        self.logger.info('FSUIPC connection established.')
+        return True
         try:
             self.pyuipcConnection = pyuipc.open(0)
             self.pyuipcOffsets = pyuipc.prepare_data(self.OFFSETS)
@@ -157,7 +211,7 @@ class VoiceAtis(object):
             self.logger.warning('FSUIPC: No simulator detected. Start you simulator first!')
             return False
     
-        
+    
     ## Runs an infinite loop.
     # i.E. for use without GUI.
     def runLoop(self):
@@ -221,8 +275,12 @@ class VoiceAtis(object):
             
             self.parseVoiceMetar()
             
+            # Time
+            hours = parseVoiceInt('{:02d}'.format(self.metar._hour))
+            minutes = parseVoiceInt('{:02d}'.format(self.metar._min))
+            
             # Parse atis voice with metar only.
-            self.atisVoice = '{}, {}.'.format(self.airportInfos[self.airport][3],self.metarVoice)
+            self.atisVoice = '{} weather report time {} {}, {}.'.format(self.airportInfos[self.airport][3],hours,minutes,self.metarVoice)
             
             # Read the metar.
             self.readVoice()
@@ -235,7 +293,9 @@ class VoiceAtis(object):
         self.parseVoiceInformation()
         
         # Metar.
-        if not self.ivac2:
+        if self.clientType == 0:
+            self.parseMetar(self.atisRaw[3].strip())
+        if self.clientType == 1:
             self.parseMetar(self.atisRaw[2].strip())
         else:
             for ar in self.atisRaw:
@@ -263,9 +323,16 @@ class VoiceAtis(object):
     
     ## Downloads and reads the whazzup from IVAO 
     def getWhazzupText(self):
-        urllib.urlretrieve(self.WHAZZUP_URL, 'whazzup.txt.gz')
+        # Get file from api.
+        with urllib.request.urlopen(self.WHAZZUP_URL) as response, open('whazzup.txt.gz', 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
+
+        # Unzip file.
         with gzip.open('whazzup.txt.gz', 'rb') as f:
-            self.whazzupText = f.read().decode('iso-8859-15')
+#             self.whazzupText = f.read().decode(ENCODING_TYPE)
+            self.whazzupText = f.read().decode("ISO-8859-1")
+        
+        # Remove the source file.
         os.remove('whazzup.txt.gz')
     
     
@@ -280,6 +347,7 @@ class VoiceAtis(object):
     ## Find a station of the airport and read the ATIS string.
     def parseWhazzupText(self):
         # Find an open station
+        #TODO: Different prio for departure/approach
         for st in self.STATION_SUFFIXES:
             matchObj = re.search('{}\w*?_{}'.format(self.airport,st),self.whazzupText)
             
@@ -290,10 +358,24 @@ class VoiceAtis(object):
             # Extract ATIS.
             lineStart = matchObj.start()
             lineEnd = self.whazzupText.find('\n',matchObj.start())
+            
+            # Split station text.
             stationInfo = self.whazzupText[lineStart:lineEnd].split(':')
-            self.ivac2 = bool(int(stationInfo[39][0]) - 1)
-            self.atisTextRaw = stationInfo[35].encode('iso-8859-15')
-            self.atisRaw = stationInfo[35].encode('iso-8859-15').split('^§')
+            
+            # Get client info (different ATIS text format)
+            if stationInfo[38] == 'IvAc':
+                self.clientType = int(stationInfo[39][0])
+            else:
+                self.clientType = 0
+                
+            # Store raw ATIS text.
+            self.atisTextRaw = stationInfo[35]
+            self.atisRaw = stationInfo[35].split('^§')
+            
+            if len(self.atisRaw) < 4:
+                self.atisRaw = None
+                self.logger.warning('ATIS text is erroneous. Using METAR.')
+            
         else:
             self.atisRaw = None
     
@@ -308,59 +390,59 @@ class VoiceAtis(object):
     # Get active runways for arrival and departure.
     # Get transistion level and altitude.
     def parseRawRwy(self):
+        #TODO: Complete rework for robustness.
         self.rwyInformation = [None,None,None,None]
-        if not self.ivac2:
-            strSplit = self.atisRaw[3].split(' / ')
-
-            for sp in strSplit:
-                # ARR.
-                if sp[0:3] == 'ARR':
-                    self.rwyInformation[0] = []
-                    arr = sp.replace('ARR RWY ','').strip()
-                    starts = []
-                    for ma in re.finditer('\d{2}[RLC]?',arr):
-                        starts.append(ma.start())
-                    for st in range(len(starts)):
-                        if st < len(starts)-1:
-                            rwy = arr[starts[st]:starts[st+1]]
-                        else:
-                            rwy = arr[starts[st]:]
-                        curRwy = [rwy[0:2],None,None,None]
-                        if 'L' in rwy:
-                            curRwy[1] = 'Left'
-                        if 'C' in rwy:
-                            curRwy[2] = 'Center'
-                        if 'R' in rwy:
-                            curRwy[3] = 'Right'
-                        self.rwyInformation[0].append(curRwy)
+        # IvAc 1 or Aurora.
+        if self.clientType != 2:
+            # Select line of rwy information.
+            if self.clientType == 0:
+                runwayStr = self.atisRaw[4]
+            else:
+                runwayStr = self.atisRaw[3]
+            
+            # Get Position of information parts. ARR is always at 0.
+            posDep = runwayStr.find('DEP')
+            posTrl = runwayStr.find('TRL')
+            posTa = runwayStr.find('TA')
+            
+            # Get strings to parse.
+            runwayParts = {'ARR' : runwayStr[7:posDep-2].strip(),
+                           'DEP' : runwayStr[posDep+7:posTrl-2].strip(),
+                           'TRL' : runwayStr[posTrl+3:posTa-2].strip(),
+                           'TA'  : runwayStr[posTa+2:].strip()}
+            
+            # Parse ARR and DEP.
+            for kId, k in enumerate(['ARR','DEP']):
+                runways = []
+                partStr = runwayParts[k]
                 
-                # DEP.
-                elif sp[0:3] == 'DEP':
-                    self.rwyInformation[1] = []
-                    dep = sp.replace('DEP RWY ','').strip()
-                    starts = []
-                    for ma in re.finditer('\d{2}[RLC]?',dep):
-                        starts.append(ma.start())
-                    for st in range(len(starts)):
-                        if st < len(starts)-1:
-                            rwy = dep[starts[st]:starts[st+1]]
-                        else:
-                            rwy = dep[starts[st]:]
-                        curRwy = [rwy[0:2],None,None,None]
-                        if 'L' in rwy:
-                            curRwy[1] = 'Left'
-                        if 'C' in rwy:
-                            curRwy[2] = 'Center'
-                        if 'R' in rwy:
-                            curRwy[3] = 'Right'
-                        self.rwyInformation[1].append(curRwy)
-                        
-                # TRL/TA
-                elif sp[0:3] == 'TRL':
-                    self.rwyInformation[2] = sp.strip().replace('TRL FL','')
+                # Find rwy numbers.
+                rwyPos = []
+                for rw in re.finditer('\d{2}',partStr):
+                    rwyPos.append(rw.start())
+                rwyPos.append(len(partStr))
+                
+                rwCount = 0
+                while rwCount < len(rwyPos)-1:
+                    dirStr = partStr[rwyPos[rwCount]:rwyPos[rwCount+1]]
+                    runwayNum = partStr[rwyPos[rwCount]:rwyPos[rwCount]+2]
+                    contDir = False
+                    for m in ['R','C','L']:
+                        if m in dirStr:
+                            runways.append(runwayNum + m)
+                            contDir = True
+                    if not contDir:
+                        runways.append(runwayNum)
                     
-                elif sp[0:2] == 'TA':
-                    self.rwyInformation[3] = sp.strip().replace('TA ','').replace('FT','')
+                    rwCount += 1
+                
+                # Add runways to list.
+                self.rwyInformation[kId] = runways
+            
+            # Parse TRL and TA.
+            self.rwyInformation[3] = runwayParts['TRL'][2:]
+            self.rwyInformation[2] = runwayParts['TA'][:-2] #TODO: Check unit meter.
+        
         # Ivac 2
         else:
             for ar in self.atisRaw:
@@ -395,14 +477,16 @@ class VoiceAtis(object):
                     else:
                         self.rwyInformation[1].append(curRwy)
     
+    
     ## Generate a string of the metar for voice generation.
     def parseVoiceMetar(self):
-        self.metarVoice = 'Met report'
+        self.metarVoice = ''
         
-        # Time
-        hours = parseVoiceInt('{:02d}'.format(self.metar._hour))
-        minutes = parseVoiceInt('{:02d}'.format(self.metar._min))
-        self.metarVoice = '{} time {} {}'.format(self.metarVoice,hours,minutes)
+#         # Time
+#         hours = parseVoiceInt('{:02d}'.format(self.metar._hour))
+#         minutes = parseVoiceInt('{:02d}'.format(self.metar._min))
+#         self.metarVoice = '{} time {} {}'.format(self.metarVoice,hours,minutes)
+        #TODO: Move to string generation.
         
         # Wind
         if self.metar.wind_speed._value != 0:
@@ -493,14 +577,29 @@ class VoiceAtis(object):
     
     ## Generate a string of the information identifier for voice generation.
     def parseVoiceInformation(self):
-        if not self.ivac2:
-            timeMatch = re.search(r'\d{4}z',self.atisRaw[1])
+        # Template: "Frankfurt information M net report time 1 2 2 0"
+        
+        # Aurora or IvAc 1
+        if self.clientType != 2:
+            if self.clientType == 0:
+                infoLine = self.atisRaw[1] + self.atisRaw [2]
+            else:
+                infoLine = self.atisRaw[1]
+            
+            # Get report time.
+            timeMatch = re.search(r'\d{4}z',infoLine)
             startInd = timeMatch.start()
             endInd = timeMatch.end()- 1
-            timeStr = parseVoiceInt(self.atisRaw[1][startInd:endInd])
+            timeStr = parseVoiceInt(infoLine[startInd:endInd])
             
-            self.informationVoice = '{} {}.'.format(self.atisRaw[1][0:startInd-1],timeStr)
+            # Get Airport name.
+            wordsList = infoLine.lower().split(' ')
+            informationIndex = wordsList.index('information')
+            airportName = ' '.join(wordsList[:informationIndex-1])
+            
+            self.informationVoice = '{} information {}, met report time {}.'.format(airportName,self.informationIdentifier,timeStr)
         
+        # IvAc 2
         else:
             information = self.atisRaw[1].split(' ')
             airport = information[0]
@@ -513,42 +612,33 @@ class VoiceAtis(object):
     ## Generate a string of the runway information for voice generation.
     def parseVoiceRwy(self):
         self.rwyVoice = ''
+        arrDep = ['Arrival','Departure']
         
-        # ARR.
-        if self.rwyInformation[0] is not None:
-            self.rwyVoice = '{}Arrival runway '.format(self.rwyVoice)
-            for arr in self.rwyInformation[0]:
-                if arr[1:4].count(None) == 3:
-                    self.rwyVoice = '{}{} and '.format(self.rwyVoice,parseVoiceInt(arr[0]))
-                else:
-                    for si in arr[1:4]:
-                        if si is not None:
-                            self.rwyVoice = '{}{} {} and '.format(self.rwyVoice,parseVoiceInt(arr[0]),si)
-            self.rwyVoice = '{},'.format(self.rwyVoice[0:-5])
-        
-        # DEP.
-        if self.rwyInformation[1] is not None:
-            self.rwyVoice = '{} Departure runway '.format(self.rwyVoice)
-            for dep in self.rwyInformation[1]:
-                if dep[1:4].count(None) == 3:
-                    self.rwyVoice = '{}{} and '.format(self.rwyVoice,parseVoiceInt(dep[0]))
-                else:
-                    for si in dep[1:4]:
-                        if si is not None:
-                            self.rwyVoice = '{}{} {} and '.format(self.rwyVoice,parseVoiceInt(dep[0]),si)
-            self.rwyVoice = '{}, '.format(self.rwyVoice[0:-5])
+        # ARR, DEP
+        for k in [0,1]:
+            if self.rwyInformation[k] is not None:
+                self.rwyVoice = '{}{} runway '.format(self.rwyVoice,arrDep[k])
+                for m in self.rwyInformation[k]:
+                    if len(m) > 2:
+                        self.rwyVoice = '{}{} {}, and '.format(self.rwyVoice,parseVoiceInt(m[0:2]),RWY_TABLE[m[2]])
+                    else:
+                        self.rwyVoice = '{}{}, and '.format(self.rwyVoice,parseVoiceInt(m))
+                
+                self.rwyVoice = self.rwyVoice[:-6] + ', '
         
         # TRL
         if self.rwyInformation[2] is not None:
-            self.rwyVoice = '{}Transition level {}, '.format(self.rwyVoice,parseVoiceInt(self.rwyInformation[2]))
+            self.rwyVoice = '{}Transition altitude {} feet, '.format(self.rwyVoice,self.rwyInformation[2])
         
         # TA
         if self.rwyInformation[3] is not None:
-            self.rwyVoice = '{}Transition altitude {} feet,'.format(self.rwyVoice,self.rwyInformation[3])
+            self.rwyVoice = '{}Transition level {},'.format(self.rwyVoice,parseVoiceInt(self.rwyInformation[3]))
             
     ## Generate a string of ATIS comment for voice generation.
     def parseVoiceComment(self):
-        if not self.ivac2:
+        if self.clientType == 0 and len(self.atisRaw) > 6:
+            self.commentVoice = '{},'.format(parseVoiceString(self.atisRaw[5].replace('RMK ','')))
+        elif self.clientType == 1 and len(self.atisRaw) > 5:
             self.commentVoice = '{},'.format(parseVoiceString(self.atisRaw[4]))
         else:
             self.commentVoice = ''
@@ -558,7 +648,7 @@ class VoiceAtis(object):
         # Init currently Reading with None.
         self.currentlyReading = None
         
-        self.logger.debug('Voice Text is: {}'.format(self.atisVoice))
+        self.logger.info('ATIS Text is: {}'.format(self.atisVoice))
         
         if pyttsxImported:
             # Set properties currently reading
@@ -567,14 +657,16 @@ class VoiceAtis(object):
             # Init voice engine.
             self.engine = pyttsx.init()
                
-            # Set properties.
+            # Set voice (english, preferably Zira).
             voices = self.engine.getProperty('voices')
             for vo in voices:
                 if 'english' in vo.name.lower():
                     self.engine.setProperty('voice', vo.id)
-                    self.logger.debug('Using voice: {}'.format(vo.name))
-                    break
+                    if 'Zira' in vo.name.lower():
+                        break
+            self.logger.debug('Using voice: {}'.format(vo.name))
             
+            # Set speech rate (speed).
             self.engine.setProperty('rate', self.SPEECH_RATE)
              
             # Start listener and loop.
@@ -693,18 +785,28 @@ class VoiceAtis(object):
         airportFreqs = {}
         
         # Read the file with frequency.
-        with closing(urllib2.urlopen(self.OUR_AIRPORTS_URL + 'airport-frequencies.csv', timeout=5)) as apFreqFile:
-            for li in apFreqFile:
-                lineSplit = li.split(',')
-                if lineSplit[3] == '"ATIS"':
-                    airportFreqs[lineSplit[2].replace('"','')] = float(lineSplit[-1].replace('\n',''))
+        response = urllib.request.urlopen(self.OUR_AIRPORTS_URL + 'airport-frequencies.csv')
+        data = response.read()
+#         apFreqText = data.decode('utf-8')
+        apFreqText = data.decode(ENCODING_TYPE)
+#         print(apFreqText)
+        
+        # Get the frequencies from the file.
+        for li in apFreqText.split('\n'):
+            lineSplit = li.split(',')
+            if len(lineSplit) > 3 and lineSplit[3] == '"ATIS"':
+                airportFreqs[lineSplit[2].replace('"','')] = float(lineSplit[-1].replace('\n',''))
         
         # Read the file with other aiport data.
+        response = urllib.request.urlopen(self.OUR_AIRPORTS_URL + 'airports.csv')
+        data = response.read()
+        apText = data.decode(ENCODING_TYPE)
+        
         # Add frequency and write them to self. airportInfos.
-        with closing(urllib2.urlopen(self.OUR_AIRPORTS_URL + 'airports.csv')) as apFile:
-            for li in apFile:
-                lineSplit = re.split((",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)"),li)
-                    
+        for li in apText.split('\n'):
+            lineSplit = re.split((",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)"),li)
+            
+            if len(lineSplit) > 1:
                 apCode = lineSplit[1].replace('"','')
                 if apCode in airportFreqs and len(apCode) <= 4:
                     apFreq = airportFreqs[apCode]
@@ -716,37 +818,41 @@ class VoiceAtis(object):
     def getAirportData(self):
         self.airportInfos = {}
         
-        try:
+#         try:
             # Try to read airport data from web.
-            self.getAirportDataWeb()
-            self.getAirportDataFile(os.path.join(self.rootDir,'airports_add.info'))
-            collectedFromWeb = True
+        self.getAirportDataWeb()
+        self.getAirportDataFile(os.path.join(self.rootDir,'airports_add.info'))
+        collectedFromWeb = True
             
-        except:
-            # If this fails, use the airports from airports.info.
-            self.logger.warning('Unable to get airport data from web. Using airports.info. Error: {}'.format(sys.exc_info()[0]))
-            self.airportInfos = {}
-            collectedFromWeb = False
-            try:
-                self.getAirportDataFile(os.path.join(self.rootDir,'airports.info'))
-            except:
-                self.logger.error('Unable to read airport data from airports.info!')
+#         except:
+#             # If this fails, use the airports from airports.info.
+#             self.logger.warning('Unable to get airport data from web. Using airports.info. Error: {}'.format(sys.exc_info()[0]))
+#             self.airportInfos = {}
+#             collectedFromWeb = False
+#             try:
+#                 self.getAirportDataFile(os.path.join(self.rootDir,'airports.info'))
+#             except:
+#                 self.logger.error('Unable to read airport data from airports.info!')
         
         # Sort airportInfos and write them to a file for future use if collected from web.
         if collectedFromWeb:
             apInfoPath = os.path.join(self.rootDir,'airports.info')
-            apList = self.airportInfos.keys()
+            apList = list(self.airportInfos.keys())
             apList.sort()
-            with open(apInfoPath,'w') as apDataFile:
+            with open(apInfoPath,'w',encoding=ENCODING_TYPE) as apDataFile:
                 for ap in apList:
                     apDataFile.write('{:>4}; {:6.2f}; {:11.6f}; {:11.6f}; {}\n'.format(ap,self.airportInfos[ap][0],self.airportInfos[ap][1],self.airportInfos[ap][2],self.airportInfos[ap][3]))
     
     
     ## Determines the info identifier of the loaded ATIS.
     def getInfoIdentifier(self):
-        if not self.ivac2:
-            informationPos = re.search('information ',self.atisRaw[1]).end()
+        if self.clientType == 1:
+            informationPos = re.search('information ',self.atisRaw[1].lower()).end()
             informationSplit = self.atisRaw[1][informationPos:].split(' ')
+            self.informationIdentifier = informationSplit[0]
+        elif self.clientType == 0:
+            informationPos = re.search('information ',self.atisRaw[2].lower()).end()
+            informationSplit = self.atisRaw[2][informationPos:].split(' ')
             self.informationIdentifier = informationSplit[0]
         else:
             self.informationIdentifier = CHAR_TABLE[re.findall(r'(?<=ATIS )[A-Z](?= \d{4})',self.atisRaw[1])[0]]
@@ -755,15 +861,12 @@ class VoiceAtis(object):
     ## Retrieves the metar of an airport independet of an ATIS.
     def getAirportMetar(self):
         
-        if not debug:
-            urllib.urlretrieve(self.WHAZZUP_METAR_URL, 'whazzup_metar.txt')
-            
-        with open('whazzup_metar.txt', 'r') as metarFile:
-            metarText = metarFile.read()
-            
-        if not debug:
-            os.remove('whazzup_metar.txt')
+        # Get the text of the file.
+        response = urllib.request.urlopen(self.WHAZZUP_METAR_URL)
+        data = response.read()
+        metarText = data.decode(ENCODING_TYPE)
         
+        # Find the metar of the current airport.
         metarStart = metarText.find(self.airport)
         metarEnd = metarText.find('\n',metarStart)
         
@@ -772,5 +875,6 @@ class VoiceAtis(object):
     
 if __name__ == '__main__':
     voiceAtis = VoiceAtis()
+#     voiceAtis = VoiceAtis(Debug=True)
     voiceAtis.runLoop()
     pass

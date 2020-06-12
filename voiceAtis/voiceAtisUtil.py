@@ -31,6 +31,9 @@ CHAR_TABLE = {'A' : 'APLHA',    'B' : 'BRAVO',      'C' : 'CHARLIE',
               'V' : 'VICTOR',   'W' : 'WHISKEY',    'X' : 'XRAY',
               'Y' : 'YANKEE',   'Z' : 'ZULU'}
 
+RWY_TABLE = {'R' : 'right',
+             'C' : 'center',
+             'L' : 'left'}
 
 ## Sperates integer Numbers with whitespace
 # Needed for voice generation to be pronounced properly.
