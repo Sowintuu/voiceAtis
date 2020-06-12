@@ -3,11 +3,12 @@
 
 # Build folders and files
 *egg-info*
-/build
-/dist
+voiceAtis/build
+voiceAtis/dist
 release*.bat
 uninstall.bat
 install*.bat
+voiceAtis/voiceAtis_compile.bat
 
 # Eclipse project files
 .project

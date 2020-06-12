@@ -68,6 +68,7 @@
 # Import built-ins
 import os
 import re
+import sys
 import time
 import shutil
 import urllib.request
@@ -169,10 +170,11 @@ class VoiceAtis(object):
         self.logLvl = optional.get('LogLevel','debug')
         
         # Get file path.
-        self.rootDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+#         self.rootDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.rootDir = os.path.dirname(os.path.abspath(__file__))
         
         # Init logging.
-        self.logger = VaLogger(os.path.join(self.rootDir,'voiceAtis','logs'))
+        self.logger = VaLogger(os.path.join(self.rootDir,'logs'))
         
         # First log message.
         self.logger.info('voiceAtis started')
@@ -818,25 +820,25 @@ class VoiceAtis(object):
     def getAirportData(self):
         self.airportInfos = {}
         
-#         try:
+        try:
             # Try to read airport data from web.
-        self.getAirportDataWeb()
-        self.getAirportDataFile(os.path.join(self.rootDir,'airports_add.info'))
-        collectedFromWeb = True
+            self.getAirportDataWeb()
+            self.getAirportDataFile(os.path.join(self.rootDir,'supportFiles','airports_add.info'))
+            collectedFromWeb = True
             
-#         except:
-#             # If this fails, use the airports from airports.info.
-#             self.logger.warning('Unable to get airport data from web. Using airports.info. Error: {}'.format(sys.exc_info()[0]))
-#             self.airportInfos = {}
-#             collectedFromWeb = False
-#             try:
-#                 self.getAirportDataFile(os.path.join(self.rootDir,'airports.info'))
-#             except:
-#                 self.logger.error('Unable to read airport data from airports.info!')
+        except:
+            # If this fails, use the airports from airports.info.
+            self.logger.warning('Unable to get airport data from web. Using airports.info. Error: {}'.format(sys.exc_info()[0]))
+            self.airportInfos = {}
+            collectedFromWeb = False
+            try:
+                self.getAirportDataFile(os.path.join(self.rootDir,'supportFiles','airports.info'))
+            except:
+                self.logger.error('Unable to read airport data from airports.info!')
         
         # Sort airportInfos and write them to a file for future use if collected from web.
         if collectedFromWeb:
-            apInfoPath = os.path.join(self.rootDir,'airports.info')
+            apInfoPath = os.path.join(self.rootDir,'supportFiles','airports.info')
             apList = list(self.airportInfos.keys())
             apList.sort()
             with open(apInfoPath,'w',encoding=ENCODING_TYPE) as apDataFile:
