@@ -29,16 +29,12 @@ In this case you can add the airport to the `airports_add.info` file. Airports i
 You may also inform me about wrong data preferably via the Issues tab. I will then enter the data at [ourairports.com](http://ourairports.com) to distritbute them to all users. Alternatively, after login, you may correct the data on your own.
 
 ### Notice for X-Plane users
-X-Plane has its own ATIS information broadcasted, often on the same (real) frequency. After tuning in the ATIS frequency you will hear the X-Plane ATIS message first and then the message provided by voiceAtis. Because X-Plane also uses the operation system text-to-speech machine like voiceAtis. The voice messages are queued and read after each other.
+X-Plane has its own ATIS information broadcasted, often on the same (real) frequency. After tuning in the ATIS frequency you will hear the X-Plane ATIS message first and then the message provided by voiceAtis. Because X-Plane also uses the operation system text-to-speech machine like voiceAtis, the voice messages are queued and read after each other.
 
-To avoid the broadcasting of the default ATIS, I created the script `xpRemoveAtisFreq.py`. All ATC frequency are stored in the file `apt.dat`. The script will remove all ATIS frequency from this file. After execution, the default ATIS should be permanently disabled.
-
-Before removal of the frequency, the script will create a backup of the original file as `apt.dat.bak`. If you would like to hear the default ATIS again, simply delete the modified `apt.dat` file and restore the backup file.
-
-Although the script is well tested and there should not occur any side-effects, the use of this script is at your own risk.
+To avoid the broadcast of the default ATIS, I added the script `disableXpAtis.lua` which is located in the supportFiles folder. You must have [FlyWithLua](https://forums.x-plane.org/index.php?/files/file/38445-flywithlua-ng-next-generation-edition-for-x-plane-11-win-lin-mac/) installed and add the script to the FlyWithLua Scripts folder.
 
 ### Notice for FSX users
-Also FSX has its own ATIS information broadcasted on the same frequency. It uses its own voice engine thus doesn't interfer with voiceAtis. Nevertheless the spoken messages and the displayed text may be disturbing. To disable them uncheck the following options.
+FSX also has its own ATIS information broadcasted on the same frequency. It uses its own voice engine thus doesn't interfer with voiceAtis. Nevertheless the spoken messages and the displayed text may be disturbing. To disable them uncheck the following options.
 * Options > General > All ATC options
 * Options > Sounds > Voice
 
@@ -49,7 +45,7 @@ Also instructions to disable the standard ATIS of the simulator are highly appre
 
 ## Bugs and issues
 * Please report bugs via the github issues tab.
-    * It is usefull to attach the logfile from "root/logs".
+    * It is usefull to attach the logfile from the "logs" folder.
     
 ### Known limitations
 * METAR
