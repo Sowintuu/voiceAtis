@@ -4,7 +4,6 @@ Reads an ATIS from IVAO using voice generation.
 ## Requirements
 * XPlane with [XPUIPC](http://fsacars.com/downloads/xpuipc/) **-or-** 
 * FSX, P3D with [FSUIPC](http://www.schiratti.com/dowson.html)
-    * P3D not tested yet
 
 ## Installation
 * Get the latest release from the [releases tab](https://github.com/Sowintuu/voiceAtis/releases).
