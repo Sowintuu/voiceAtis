@@ -133,7 +133,7 @@ See the [Credits](http://ourairports.com/about.html#credits) for a list of contr
 
 ## Changelog
 
-## version 0.3.0 - 16.06.2020
+### version 0.3.0 - 16.06.2020
 * Complete rework of voice generation logic
     * Change from pyttsx3 to tts
 	* Added a radio effect (via AudioLib)
@@ -143,7 +143,7 @@ See the [Credits](http://ourairports.com/about.html#credits) for a list of contr
 	* In the air prio is now APP > TWR > GND > DEL > DEP
 * Included legal advice at start of the program
 
-## version 0.2.1 - 12.06.2020
+### version 0.2.1 - 12.06.2020
 * Small fixes for first standalone release
 
 ### version 0.2.0 - 12.06.2020
