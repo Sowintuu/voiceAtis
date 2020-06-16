@@ -39,9 +39,11 @@ FSX also has its own ATIS information broadcasted on the same frequency. It uses
 * Options > Sounds > Voice
 
 ### Notice for P3D users
-I didn't test voiceAtis with P3D as I don't own this simulator, but it should work with the appropriate version of FSUIPC. If you are a P3D user, please tell me if it worked. If it didn't work, open an issue so that I can fix it.
+I don't own P3D but voiceAtis was tested up to v0.3.0 and it worked. 
 
-Also instructions to disable the standard ATIS of the simulator are highly appreciated!
+To disable the default ATIS in P3D follow these steps:
+Disable ATIS Voice: Options > General > Sound > Uncheck "Voice"
+Disable ATIS Text: Options > General > Information > Uncheck "Show message log in ATC menu"
 
 ## Bugs and issues
 * Please report bugs via the github issues tab.
