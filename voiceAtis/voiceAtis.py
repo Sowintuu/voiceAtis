@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <https://www.gnu.org/licenses/>.
 #==============================================================================
-# Version - 0.2.0 - Changlog > README.md
+# Version - 0.3.0 - Changlog > README.md
 #==============================================================================
 # Sample ATIS
 # 0 - Aurora
@@ -63,7 +63,24 @@
 
 #==============================================================================
 
-
+# Declaraion at the beginning.
+print('voiceAtis - Reads an ATIS from IVAO using voice generation')
+print('Copyright (C) 2018-2020  Oliver Clemens')
+print(' ')
+print('This program is free software: you can redistribute it and/or modify it under')
+print('the terms of the GNU General Public License as published by the Free Software')
+print('Foundation, either version 3 of the License, or (at your option) any later')
+print('version.')
+print(' ')
+print('This program is distributed in the hope that it will be useful, but WITHOUT')
+print('ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS')
+print('FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more')
+print('details.')
+print(' ')
+print('You should have received a copy of the GNU General Public License along with')
+print('this program. If not, see <https://www.gnu.org/licenses/>.')
+print(' ')
+print('This software uses ', end = '')
 
 # Import built-ins
 import os
@@ -91,6 +108,9 @@ except ImportError:
         pyuipcImported = False
         debug = True
 
+import tts.sapi
+from AudioEffect import AudioEffect
+from pygame import mixer
 from metar.Metar import Metar
 from aviationFormula.aviationFormula import gcDistanceNm
 
@@ -106,7 +126,6 @@ ENCODING_TYPE = 'utf-8'
 # Run constructor to run the program.
 class VoiceAtis(object):
     
-    STATION_SUFFIXES = ['TWR','APP','GND','DEL','DEP']
     STATION_SUFFIXES_DEP = ['DEL','GND','TWR','DEP','APP']
     STATION_SUFFIXES_ARR = ['APP','TWR','GND','DEL','DEP']
     
@@ -121,6 +140,9 @@ class VoiceAtis(object):
                (0x3122,'b'),    # radioActive
                (0x0560,'l'),    # ac Latitude
                (0x0568,'l'),    # ac Longitude
+               (0x0350,'H'),    # nav1freq
+               (0x0352,'H'),    # nav2freq
+               (0x0366,'b'),    # onGroundFlag
               ]
     # Add agl, (ground speed).
     
@@ -164,6 +186,12 @@ class VoiceAtis(object):
         #TODO: Create GUI.
         #TODO: Split 4000 to 4 1000 -> four thousand
         #TODO: Also check NAV1+NAV2 (ATIS can be broadcasted there as well).
+        #TODO: Call IVAO API less frequently.
+        #TODO: Download Airport data only once a day.
+        #TODO: Do not recreate voice string, if nothing changed (performance)
+        
+        # Print newline for spacing.
+        print(' ')
         
         # Process optional arguments.
         self.debug = optional.get('Debug',debug)
@@ -196,10 +224,6 @@ class VoiceAtis(object):
     # Return 'True' on success or if pyuipc not installed.
     # Return 'False' on fail.
     def connectPyuipc(self):
-        self.pyuipcConnection = pyuipc.open(0)
-        self.pyuipcOffsets = pyuipc.prepare_data(self.OFFSETS)
-        self.logger.info('FSUIPC connection established.')
-        return True
         try:
             self.pyuipcConnection = pyuipc.open(0)
             self.pyuipcOffsets = pyuipc.prepare_data(self.OFFSETS)
@@ -315,7 +339,7 @@ class VoiceAtis(object):
         self.parseVoiceComment()
         
         # Compose complete atis voice string.
-        self.atisVoice = '{} {} {} {} Information {}, out.'.format(self.informationVoice,self.rwyVoice,self.commentVoice,self.metarVoice,self.informationIdentifier)
+        self.atisVoice = '{} {} {} {} Information {}, out,'.format(self.informationVoice,self.rwyVoice,self.commentVoice,self.metarVoice,self.informationIdentifier)
         
         # Read the string.
         self.readVoice()
@@ -349,8 +373,12 @@ class VoiceAtis(object):
     ## Find a station of the airport and read the ATIS string.
     def parseWhazzupText(self):
         # Find an open station
-        #TODO: Different prio for departure/approach
-        for st in self.STATION_SUFFIXES:
+        if self.onGround:
+            stationSuffixes = self.STATION_SUFFIXES_DEP
+        else:
+            stationSuffixes = self.STATION_SUFFIXES_ARR
+        
+        for st in stationSuffixes:
             matchObj = re.search('{}\w*?_{}'.format(self.airport,st),self.whazzupText)
             
             if matchObj is not None:
@@ -392,7 +420,6 @@ class VoiceAtis(object):
     # Get active runways for arrival and departure.
     # Get transistion level and altitude.
     def parseRawRwy(self):
-        #TODO: Complete rework for robustness.
         self.rwyInformation = [None,None,None,None]
         # IvAc 1 or Aurora.
         if self.clientType != 2:
@@ -443,7 +470,7 @@ class VoiceAtis(object):
             
             # Parse TRL and TA.
             self.rwyInformation[3] = runwayParts['TRL'][2:]
-            self.rwyInformation[2] = runwayParts['TA'][:-2] #TODO: Check unit meter.
+            self.rwyInformation[2] = runwayParts['TA'][:-2] #TODO: Check unit meter (russia, china).
         
         # Ivac 2
         else:
@@ -483,12 +510,6 @@ class VoiceAtis(object):
     ## Generate a string of the metar for voice generation.
     def parseVoiceMetar(self):
         self.metarVoice = ''
-        
-#         # Time
-#         hours = parseVoiceInt('{:02d}'.format(self.metar._hour))
-#         minutes = parseVoiceInt('{:02d}'.format(self.metar._min))
-#         self.metarVoice = '{} time {} {}'.format(self.metarVoice,hours,minutes)
-        #TODO: Move to string generation.
         
         # Wind
         if self.metar.wind_speed._value != 0:
@@ -579,8 +600,6 @@ class VoiceAtis(object):
     
     ## Generate a string of the information identifier for voice generation.
     def parseVoiceInformation(self):
-        # Template: "Frankfurt information M net report time 1 2 2 0"
-        
         # Aurora or IvAc 1
         if self.clientType != 2:
             if self.clientType == 0:
@@ -645,55 +664,74 @@ class VoiceAtis(object):
         else:
             self.commentVoice = ''
     
-    ## Reads the atis string using voice generation.
+    
     def readVoice(self):
-        # Init currently Reading with None.
-        self.currentlyReading = None
+        #TODO: Speperate voice connect from voice reading.
+        #TODO: Start first reading at random place in string.
+    
+        # Set properties currently reading
+        self.currentlyReading = self.airport
         
-        self.logger.info('ATIS Text is: {}'.format(self.atisVoice))
+        # Log ATIS text.
+        try:
+            self.logger.info('ATIS Text is: {}'.format(self.atisVoice))
+        except:
+            self.logger.info('ATIS Text cannot be displayed: unexpected characters.')
         
-        if pyttsxImported:
-            # Set properties currently reading
-            self.currentlyReading = self.airport
-            
-            # Init voice engine.
-            self.engine = pyttsx.init()
-               
-            # Set voice (english, preferably Zira).
-            voices = self.engine.getProperty('voices')
-            for vo in voices:
-                if 'english' in vo.name.lower():
-                    self.engine.setProperty('voice', vo.id)
-                    if 'Zira' in vo.name.lower():
-                        break
-            self.logger.debug('Using voice: {}'.format(vo.name))
-            
-            # Set speech rate (speed).
-            self.engine.setProperty('rate', self.SPEECH_RATE)
-             
-            # Start listener and loop.
-            self.engine.connect('started-word', self.onWord)
-
-            # Say complete ATIS
-            self.engine.say(self.atisVoice)
-            self.logger.info('Start reading.')
-            self.engine.runAndWait()
-            self.logger.info('Reading finished.')
-            self.engine = None
-            
-        else:
-            self.logger.warning('Speech engine not initalized, no reading. Sleeping for {} seconds...'.format(self.SLEEP_TIME))
-            time.sleep(self.SLEEP_TIME)
+        # Init tts engine
+        self.engine = tts.sapi.Sapi()
+        self.engine.set_voice("Zira")
+        
+        # Create tmp folder.
+        if not os.path.isdir('tmp'):
+            os.mkdir('tmp')
+        
+        # Get tmp name.
+        fileCount = 0
+        fileTmp = 'tmp/atis_0.wav'
+        while os.path.isfile(fileTmp):
+            fileCount += 1
+            fileTmp = 'tmp/atis_{}.wav'.format(fileCount)
+        
+        # Create tmp wav file.
+        self.logger.info('Generating ATIS sound.')
+        self.engine.create_recording(fileTmp, self.atisVoice)
+        
+        # Apply radio effect.
+        self.logger.info('Generating radio effects.')
+        AudioEffect.radio(fileTmp, fileTmp)
+        
+        # Start reading.
+        mixer.init()
+        mixer.music.load(fileTmp)
+        self.logger.info('Start reading.')
+        mixer.music.play()
+        
+        while mixer.music.get_busy():
+            self.onWord()
+            tmpfiles = os.listdir('tmp')
+            for k in tmpfiles:
+                fullPath = 'tmp/' + k
+                if fullPath != fileTmp:
+                    try:
+                        os.remove(fullPath)
+                    except:
+                        pass
+            time.sleep(0.5)
+        
+        self.logger.info('Reading finished.')
+        
     
     ## Callback for stop of reading.
     # Stops reading if frequency change/com deactivation/out of range.
-    def onWord(self, name, location, length):  # @UnusedVariable
+    def onWord(self):
         self.getPyuipcData()
         self.getAirport()
         
         if self.airport != self.currentlyReading:
-            self.engine.stop()
+            mixer.music.stop()
             self.currentlyReading = None
+            self.logger.info('Reading interrupted.')
     
     
     ## Reads current frequency and COM status.
@@ -707,6 +745,10 @@ class VoiceAtis(object):
             self.com1frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
             hexCode = hex(results[1])[2:]
             self.com2frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
+            hexCode = hex(results[5])[2:]
+            self.nav1frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
+            hexCode = hex(results[6])[2:]
+            self.nav2frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
             
             # radio active
             #TODO: Test accuracy of this data (with various planes and sims)
@@ -727,6 +769,10 @@ class VoiceAtis(object):
             # lat lon
             self.lat = results[3] * (90.0/(10001750.0 * 65536.0 * 65536.0))
             self.lon = results[4] * (360.0/(65536.0 * 65536.0 * 65536.0 * 65536.0))
+            
+            # on ground.
+            self.onGround = results[7]
+            
         
         else:
             self.com1frequency = self.COM1_FREQUENCY_DEBUG

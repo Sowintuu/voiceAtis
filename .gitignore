@@ -21,6 +21,9 @@ voiceAtis/voiceAtis_compile.bat
 # archive folder
 /archive
 
+# Generated folders
+voiceAtis/tmp
+
 # generated airport file
 airports.info
 airports_add.info
