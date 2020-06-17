@@ -28,6 +28,9 @@ voiceAtis/tmp
 airports.info
 airports_add.info
 
+# ini file.
+voiceAtis/voiceAtis.ini
+
 # python-metar folder
 /python-metar
 

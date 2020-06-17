@@ -8,13 +8,17 @@ Reads an ATIS from IVAO using voice generation.
 ## Installation
 * Get the latest release from the [releases tab](https://github.com/Sowintuu/voiceAtis/releases).
 * Unzip the folder.
+* Disable Windows Defender check for voiceAtis. Of course, voiceAtis is no malicious code. But as the "voiceAtis.exe" is from a source unknown to Defender it will issue a warning. You can disable it like this (thanks to Stackoverflow user "kunif"):
+    * Go to Start > Settings > Update & Security > Windows Security > Virus & threat protection.
+    * Under "Virus & threat protection settings", select "Manage settings" and then under "Exclusions", select "Add or remove exclusions".
+    * Select "Add an exclusion". Select the voiceAtis folder.
 
 ## Usage
 * Start your sim and start a flight.
 * Start the voiceAtis.exe file in the unziped folder.
    * **Note that you must start the .exe as admin if you have started your sim as admin!**
 * Tune the ATIS frequency of the airport where you are parking.
-   * Don't forget to activate receive mode of the radio (COM1 or COM2)
+   * Don't forget to activate receive mode of the radio (COM1, COM2, NAV1, NAV2)
 * You should hear the ATIS now, if:
    * There is an ATC station online at this airport (TWR, APP, GND or DEL)
    * The airport has an ATIS frequency at [ourairports.com](http://ourairports.com)
@@ -26,6 +30,7 @@ Airport data is downloaded from [ourairports.com](http://ourairports.com). You c
 In this case you can add the airport to the `airports_add.info` file. Airports in this file have priority over downloaded data.
 
 You may also inform me about wrong data preferably via the Issues tab. I will then enter the data at [ourairports.com](http://ourairports.com) to distritbute them to all users. Alternatively, after login, you may correct the data on your own.
+Changes are available to voiceAtis at the following day after the change at ourairports.
 
 ### Notice for X-Plane users
 X-Plane has its own ATIS information broadcasted, often on the same (real) frequency. After tuning in the ATIS frequency you will hear the X-Plane ATIS message first and then the message provided by voiceAtis. Because X-Plane also uses the operation system text-to-speech machine like voiceAtis, the voice messages are queued and read after each other.
@@ -41,8 +46,8 @@ FSX also has its own ATIS information broadcasted on the same frequency. It uses
 I don't own P3D but voiceAtis was tested up to v0.3.0 and it worked. 
 
 To disable the default ATIS in P3D follow these steps:
-Disable ATIS Voice: Options > General > Sound > Uncheck "Voice"
-Disable ATIS Text: Options > General > Information > Uncheck "Show message log in ATC menu"
+* Disable ATIS Voice: Options > General > Sound > Uncheck "Voice"
+* Disable ATIS Text: Options > General > Information > Uncheck "Show message log in ATC menu"
 
 ## Bugs and issues
 * Please report bugs via the github issues tab.
@@ -54,22 +59,28 @@ Disable ATIS Text: Options > General > Information > Uncheck "Show message log i
     * No visibility directions
     * No runway condition
 * IvAc 2 support discontinued
-   * Reading ATIS from IvAc 2 works. However there are bugs and this wont be improved.
-   * Remarks of ivac 2 stations will not be read.
-* X-Plane: Detection of active radio not accurate
-* Sometimes airports have more than 1 ATIS frequency (e.g. EDDF or LOWW, for departure and arrival)
-    * You might have to try all frequencies to find the one working.
-    * Check [ourairports.com](http://ourairports.com) for the (real world) frequencies.
+    * Reading ATIS from IvAc 2 works. However there are bugs and this wont be improved in the future.
+    * Remarks of ivac 2 stations will not be read.
+* X-Plane: Detection of active COM not accurate
+    * To work reliable, activate receive for both COM1 and COM2 
+* Frequency used may not match the real world frequency
+    * Check [ourairports.com](http://ourairports.com) for the frequencies used.
+	* It is a community project, feel free to update the frequencies (or tell me).
 
 ## Build
 ### Requirements
 * Python 3.8 - 32 bit (due to pyuipc incompatibility with 64 bit)
-* pywin32
 
 ### Installation
+* **currently not supported, will be updated eventually**
+    * For the latest version, clone the repository
 * Get the latest python 3.8 ([Python releases](https://www.python.org/downloads/))
-* Install the latest pywin32 release (`pip install pywin32`)
 * Run `pip install voiceAtis`
+
+### Using pyinstaller.
+Build an executable using the following command:
+
+`pyinstaller voiceAtis.py`
 
 ## Used packages and Copyright
 ### python-metar
@@ -131,6 +142,15 @@ Behind the fun and features, OurAirports exists primarily as a public good. When
 See the [Credits](http://ourairports.com/about.html#credits) for a list of contributers.
 
 ## Changelog
+
+### version 0.3.1 -
+* Support of airports with multiple AITS frequencies
+    * Message is read, if one of the frequencies is tuned.
+* Support of ATIS broadcasted via NAV
+* Airport data are now downloaded only once a day. (performance improvement)
+* Whazzup data is now only downloaded every 5 minutes or more.
+* Removed some debugging code.
+* Many new information in this document (README.md)
 
 ### version 0.3.0 - 16.06.2020
 * Complete rework of voice generation logic

@@ -92,22 +92,12 @@ import urllib.request
 import gzip
 from math import floor
 import warnings
+from datetime import datetime
+import wave
+import contextlib
 
-# Import pip packages (except failure with debug mode).
-try:
-    import pyttsx3 as pyttsx
-    pyttsxImported = True
-except ImportError:
-    pyttsxImported = False
-
-try:
-    import pyuipc
-    pyuipcImported = True
-    debug = False
-except ImportError:
-        pyuipcImported = False
-        debug = True
-
+# Import pip packages.
+import pyuipc
 import tts.sapi
 from AudioEffect import AudioEffect
 from pygame import mixer
@@ -151,77 +141,49 @@ class VoiceAtis(object):
     
     OUR_AIRPORTS_URL = 'http://ourairports.com/data/'
     
-
-    COM1_FREQUENCY_DEBUG = 199.99
-    
-    # EDDS
-    COM2_FREQUENCY_DEBUG = 126.12
-    LAT_DEBUG = 48.687
-    LON_DEBUG = 9.205
-
-    # EDDM
-#     COM2_FREQUENCY_DEBUG = 123.12
-#     LAT_DEBUG = 48.353
-#     LON_DEBUG = 11.786
-
-    # LIRF
-#     COM2_FREQUENCY_DEBUG = 121.85
-#     LAT_DEBUG = 41.8
-#     LON_DEBUG = 12.2
-    
-    # LIBR
-#     COM2_FREQUENCY_DEBUG = 121.85
-#     LAT_DEBUG = 41.8
-#     LON_DEBUG = 12.2
-    
-    
-    WHAZZUP_TEXT_DEBUG = r'C:\gitserver\voiceAtis\archive\whazzup.txt'
     
     ## Setup the VoiceAtis object.
     # Inits logger.
     # Downloads airport data.
     def __init__(self,**optional):
-        #TODO: Remove the debug code when tested properly.
-        #TODO: Improve logged messages.
         #TODO: Create GUI.
         #TODO: Split 4000 to 4 1000 -> four thousand
-        #TODO: Also check NAV1+NAV2 (ATIS can be broadcasted there as well).
-        #TODO: Call IVAO API less frequently.
-        #TODO: Download Airport data only once a day.
         #TODO: Do not recreate voice string, if nothing changed (performance)
         
         # Print newline for spacing.
         print(' ')
         
         # Process optional arguments.
-        self.debug = optional.get('Debug',debug)
         self.logLvl = optional.get('LogLevel','debug')
         
         # Get file path.
-#         self.rootDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.rootDir = os.path.dirname(os.path.abspath(__file__))
         
         # Init logging.
         self.logger = VaLogger(os.path.join(self.rootDir,'logs'))
+        self.logger.setLevel(ConcoleLevel=self.logLvl)
         
         # First log message.
         self.logger.info('voiceAtis started')
         
-        # Read file with airport frequencies and coordinates.
-        self.logger.info('Downloading airport data. This may take some time.')
-        self.getAirportData()
-        self.logger.info('Finished downloading airport data.')
+        # Read ini.
+        self.readIni()
         
-        # Show debug Info
-        #TODO: Remove for release.
-        if self.debug:
-            self.logger.info('Debug mode on.')
-            self.logger.setLevel(ConsoleLevel='debug')
-        else:
-            self.logger.setLevel(ConcoleLevel=self.logLvl)
+        # Read file with airport frequencies and coordinates.
+        self.getAirportData()
+        
+        # Init tts engine
+        self.engine = tts.sapi.Sapi()
+        self.engine.set_voice("Zira")   #TODO: handle not available speech engine
+        
+        # Init pygame.mixer (playing sound files).
+        mixer.init()
+        
+        # Init time of last whazzup download 100 min before call.
+        self.lastWhazzupDownload = time.time()-6000
         
     ## Establishs pyuipc connection.
-    # Return 'True' on success or if pyuipc not installed.
+    # Return 'True' on success.
     # Return 'False' on fail.
     def connectPyuipc(self):
         try:
@@ -231,23 +193,26 @@ class VoiceAtis(object):
             return True
         except NameError:
             self.pyuipcConnection = None
-            self.logger.warning('Error using PYUIPC, running voiceAtis without it.')
-            return True
+            self.logger.warning('Error using PYUIPC.')
+            return False
         except:
             self.logger.warning('FSUIPC: No simulator detected. Start you simulator first!')
             return False
     
     
     ## Runs an infinite loop.
-    # i.E. for use without GUI.
+    # For first implementation without GUI.
     def runLoop(self):
-        
         # Establish pyuipc connection
         result = False
+        adminMessageSent = False
         while not result:
             result = self.connectPyuipc()
             if not result:
                 self.logger.info('Retrying in 20 seconds.')
+                if not adminMessageSent:
+                    self.logger.warning('If you run your simulator as admin, also run voiceAtis as admin!')
+                    adminMessageSent = True
                 time.sleep(20)
         
         # Infinite loop.
@@ -259,8 +224,7 @@ class VoiceAtis(object):
         except KeyboardInterrupt:
             # Actions at Keyboard Interrupt.
             self.logger.info('Loop interrupted by user.')
-            if pyuipcImported:
-                self.pyuipc.close()
+            self.pyuipc.close()
             
     
     ## One cyle of a loop.
@@ -281,10 +245,7 @@ class VoiceAtis(object):
             self.logger.info('Airport: {}.'.format(self.airport))
         
         # Get whazzup file
-        if not self.debug:
-            self.getWhazzupText()
-        else:
-            self.getWhazzupTextDebug()
+        self.getWhazzupText()
         
         # Read whazzup text and get a station.
         self.parseWhazzupText()
@@ -349,13 +310,19 @@ class VoiceAtis(object):
     
     ## Downloads and reads the whazzup from IVAO 
     def getWhazzupText(self):
+        # Check if last download was more than 5 min ago.
+        if time.time() - self.lastWhazzupDownload < 300:
+            self.logger.info('Last ATIS data download was less than 5 min ago -> no update.')
+            return
+        
         # Get file from api.
+        self.logger.info('Downloading new ATIS data.')
         with urllib.request.urlopen(self.WHAZZUP_URL) as response, open('whazzup.txt.gz', 'wb') as out_file:
             shutil.copyfileobj(response, out_file)
+        self.lastWhazzupDownload = time.time()
 
         # Unzip file.
         with gzip.open('whazzup.txt.gz', 'rb') as f:
-#             self.whazzupText = f.read().decode(ENCODING_TYPE)
             self.whazzupText = f.read().decode("ISO-8859-1")
         
         # Remove the source file.
@@ -666,7 +633,6 @@ class VoiceAtis(object):
     
     
     def readVoice(self):
-        #TODO: Speperate voice connect from voice reading.
         #TODO: Start first reading at random place in string.
     
         # Set properties currently reading
@@ -677,10 +643,6 @@ class VoiceAtis(object):
             self.logger.info('ATIS Text is: {}'.format(self.atisVoice))
         except:
             self.logger.info('ATIS Text cannot be displayed: unexpected characters.')
-        
-        # Init tts engine
-        self.engine = tts.sapi.Sapi()
-        self.engine.set_voice("Zira")
         
         # Create tmp folder.
         if not os.path.isdir('tmp'):
@@ -701,8 +663,13 @@ class VoiceAtis(object):
         self.logger.info('Generating radio effects.')
         AudioEffect.radio(fileTmp, fileTmp)
         
+        # Get wav duration.
+        with contextlib.closing(wave.open(fileTmp,'r')) as f:
+            frames = f.getnframes()
+            rate = f.getframerate()
+            self.wavDuration = frames / float(rate)
+        
         # Start reading.
-        mixer.init()
         mixer.music.load(fileTmp)
         self.logger.info('Start reading.')
         mixer.music.play()
@@ -737,50 +704,51 @@ class VoiceAtis(object):
     ## Reads current frequency and COM status.
     def getPyuipcData(self):
         
-        if pyuipcImported:
-            results = pyuipc.read(self.pyuipcOffsets)
-            
-            # frequency
-            hexCode = hex(results[0])[2:]
-            self.com1frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
-            hexCode = hex(results[1])[2:]
-            self.com2frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
-            hexCode = hex(results[5])[2:]
-            self.nav1frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
-            hexCode = hex(results[6])[2:]
-            self.nav2frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
-            
-            # radio active
-            #TODO: Test accuracy of this data (with various planes and sims)
-            radioActiveBits = list(map(int, '{0:08b}'.format(results[2])))
-            if radioActiveBits[2]:
-                self.com1active = True
-                self.com2active = True
-            elif radioActiveBits[0]:
-                self.com1active = True
-                self.com2active = False
-            elif radioActiveBits[1]:
-                self.com1active = False
-                self.com2active = True
-            else:
-                self.com1active = False
-                self.com2active = False
-            
-            # lat lon
-            self.lat = results[3] * (90.0/(10001750.0 * 65536.0 * 65536.0))
-            self.lon = results[4] * (360.0/(65536.0 * 65536.0 * 65536.0 * 65536.0))
-            
-            # on ground.
-            self.onGround = results[7]
-            
+        results = pyuipc.read(self.pyuipcOffsets)
         
-        else:
-            self.com1frequency = self.COM1_FREQUENCY_DEBUG
-            self.com2frequency = self.COM2_FREQUENCY_DEBUG
+        # frequency
+        #TODO: Check 8.33 kHz. (125.205 = 125.200)
+        hexCode = hex(results[0])[2:]
+        self.com1frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
+        hexCode = hex(results[1])[2:]
+        self.com2frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
+        hexCode = hex(results[5])[2:]
+        self.nav1frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
+        hexCode = hex(results[6])[2:]
+        self.nav2frequency = float('1{}.{}'.format(hexCode[0:2],hexCode[2:]))
+        
+        # radio active
+        #TODO: Test accuracy of this data (with various planes and sims)
+        radioActiveBits = list(map(int, '{0:08b}'.format(results[2])))
+        if radioActiveBits[2]:
             self.com1active = True
             self.com2active = True
-            self.lat = self.LAT_DEBUG
-            self.lon = self.LON_DEBUG
+        elif radioActiveBits[0]:
+            self.com1active = True
+            self.com2active = False
+        elif radioActiveBits[1]:
+            self.com1active = False
+            self.com2active = True
+        else:
+            self.com1active = False
+            self.com2active = False
+        
+        if radioActiveBits[3]:
+            self.nav1active = True
+        else:
+            self.nav1active = False
+        if radioActiveBits[4]:
+            self.nav2active = True
+        else:
+            self.nav2active = False
+        
+        # lat lon
+        self.lat = results[3] * (90.0/(10001750.0 * 65536.0 * 65536.0))
+        self.lon = results[4] * (360.0/(65536.0 * 65536.0 * 65536.0 * 65536.0))
+        
+        # on ground.
+        self.onGround = results[7]
+            
         
         # Logging.
         if self.com1active:
@@ -791,9 +759,21 @@ class VoiceAtis(object):
             com2activeStr = 'active'
         else:
             com2activeStr = 'inactive'
-        
-        self.logger.debug('COM 1: {} ({}), COM 2: {} ({})'.format(self.com1frequency,com1activeStr,self.com2frequency,com2activeStr))
-#         self.logger.debug('COM 1 active: {}, COM 2 active: {}'.format(self.com1active,self.com2active))
+        if self.nav1active:
+            nav1activeStr = 'active'
+        else:
+            nav1activeStr = 'inactive'
+        if self.nav2active:
+            nav2activeStr = 'active'
+        else:
+            nav2activeStr = 'inactive'
+            
+        if mixer.music.get_busy():
+            self.logger.debug('COM 1: {} ({}), COM 2: {} ({})'.format(self.com1frequency,com1activeStr,self.com2frequency,com2activeStr))
+            self.logger.debug('NAV 1: {} ({}), NAV 2: {} ({})'.format(self.nav1frequency,nav1activeStr,self.nav2frequency,nav2activeStr))
+        else:
+            self.logger.info('COM 1: {} ({}), COM 2: {} ({})'.format(self.com1frequency,com1activeStr,self.com2frequency,com2activeStr))
+            self.logger.info('NAV 1: {} ({}), NAV 2: {} ({})'.format(self.nav1frequency,nav1activeStr,self.nav2frequency,nav2activeStr))
     
     ## Determine if there is an airport aplicable for ATIS reading.
     def getAirport(self):
@@ -803,14 +783,21 @@ class VoiceAtis(object):
             frequencies.append(self.com1frequency)
         if self.com2active:
             frequencies.append(self.com2frequency)
-            
+        if self.nav1active:
+            frequencies.append(self.nav1frequency)
+        if self.nav2active:
+            frequencies.append(self.nav2frequency)
+        
         if frequencies:
             distanceMin = self.RADIO_RANGE + 1
             for ap in self.airportInfos:
                 distance = gcDistanceNm(self.lat, self.lon, self.airportInfos[ap][1], self.airportInfos[ap][2])
-                if (floor(self.airportInfos[ap][0]*100)/100) in frequencies and distance < self.RADIO_RANGE and distance < distanceMin:
-                    distanceMin = distance
-                    self.airport = ap
+                if distance < self.RADIO_RANGE and distance < distanceMin:
+                    for fr in self.airportInfos[ap][0]:
+                        if (floor(fr*100)/100) in frequencies:
+                            distanceMin = distance
+                            self.airport = ap
+                            break
     
     
     ## Read data of airports from a given file.
@@ -821,11 +808,15 @@ class VoiceAtis(object):
             return
         
         # Read the file.
-        with open(apFile) as aptInfoFile:
+        with open(apFile, encoding="utf8") as aptInfoFile:
             for li in aptInfoFile:
                 lineSplit = re.split('[,;]',li)
                 if not li.startswith('#') and len(lineSplit) == 5:
-                    self.airportInfos[lineSplit[0].strip()] = (float(lineSplit[1]),float(lineSplit[2]),float(lineSplit[3]),lineSplit[4].replace('\n',''))
+                    freqStr = lineSplit[1].split('^')
+                    freqList = []
+                    for fr in freqStr:
+                        freqList.append(float(fr))
+                    self.airportInfos[lineSplit[0].strip()] = (freqList,float(lineSplit[2]),float(lineSplit[3]),lineSplit[4].replace('\n',''))
     
     ## Read data of airports from http://ourairports.com.
     def getAirportDataWeb(self):
@@ -835,15 +826,17 @@ class VoiceAtis(object):
         # Read the file with frequency.
         response = urllib.request.urlopen(self.OUR_AIRPORTS_URL + 'airport-frequencies.csv')
         data = response.read()
-#         apFreqText = data.decode('utf-8')
         apFreqText = data.decode(ENCODING_TYPE)
-#         print(apFreqText)
         
         # Get the frequencies from the file.
         for li in apFreqText.split('\n'):
             lineSplit = li.split(',')
             if len(lineSplit) > 3 and lineSplit[3] == '"ATIS"':
-                airportFreqs[lineSplit[2].replace('"','')] = float(lineSplit[-1].replace('\n',''))
+                airportCode = lineSplit[2].replace('"','')
+                if airportCode not in airportFreqs:
+                    airportFreqs[airportCode] = [float(lineSplit[-1].replace('\n',''))]
+                else:
+                    airportFreqs[airportCode].append(float(lineSplit[-1].replace('\n','')))
         
         # Read the file with other aiport data.
         response = urllib.request.urlopen(self.OUR_AIRPORTS_URL + 'airports.csv')
@@ -857,20 +850,28 @@ class VoiceAtis(object):
             if len(lineSplit) > 1:
                 apCode = lineSplit[1].replace('"','')
                 if apCode in airportFreqs and len(apCode) <= 4:
-                    apFreq = airportFreqs[apCode]
-                    if 100.0 < apFreq < 140.0:
-                        self.airportInfos[apCode] = [apFreq,float(lineSplit[4]),float(lineSplit[5]),lineSplit[3].replace('"','')]
+                    self.airportInfos[apCode] = [airportFreqs[apCode],float(lineSplit[4]),float(lineSplit[5]),lineSplit[3].replace('"','')]
         
         
     ## Reads airportData from two sources.
     def getAirportData(self):
         self.airportInfos = {}
         
+        # Check update date of airport data.
+        # Airport data only have to be downloaded once a day.
+        if 'lastAirportDownload' in self.iniOptions:
+            if self.iniOptions['lastAirportDownload'] == datetime.today().strftime('%d%m%y'):
+                self.logger.info('Airport data up to date.')
+                self.getAirportDataFile(os.path.join(self.rootDir,'supportFiles','airports.info'))
+                return
+        
         try:
             # Try to read airport data from web.
+            self.logger.info('Downloading airport data. This may take some time.')
             self.getAirportDataWeb()
             self.getAirportDataFile(os.path.join(self.rootDir,'supportFiles','airports_add.info'))
             collectedFromWeb = True
+            self.logger.info('Finished downloading airport data.')
             
         except:
             # If this fails, use the airports from airports.info.
@@ -889,8 +890,13 @@ class VoiceAtis(object):
             apList.sort()
             with open(apInfoPath,'w',encoding=ENCODING_TYPE) as apDataFile:
                 for ap in apList:
-                    apDataFile.write('{:>4}; {:6.2f}; {:11.6f}; {:11.6f}; {}\n'.format(ap,self.airportInfos[ap][0],self.airportInfos[ap][1],self.airportInfos[ap][2],self.airportInfos[ap][3]))
-    
+                    freqStr = ''
+                    for fr in self.airportInfos[ap][0]:
+                        freqStr = '{}{}^'.format(freqStr,fr)
+                    apDataFile.write('{:>4}; {:20}; {:11.6f}; {:11.6f}; {}\n'.format(ap,freqStr.strip('^'),self.airportInfos[ap][1],self.airportInfos[ap][2],self.airportInfos[ap][3]))
+            
+            self.iniOptions['lastAirportDownload'] = datetime.today().strftime('%d%m%y')
+            self.writeIni()
     
     ## Determines the info identifier of the loaded ATIS.
     def getInfoIdentifier(self):
@@ -919,6 +925,27 @@ class VoiceAtis(object):
         metarEnd = metarText.find('\n',metarStart)
         
         return metarText[metarStart:metarEnd]
+    
+    
+    ## Get information from voiceAtis.ini file.
+    # File is created if it doesn't exist.
+    def readIni(self):
+        self.iniOptions = {}
+        if os.path.isfile('voiceAtis.ini'):
+            with open('voiceAtis.ini') as iniFile:
+                iniContent = iniFile.readlines()
+            for k in iniContent:
+                line = k.split('=')
+                self.iniOptions[line[0].strip()] = line[1].strip()
+        else:
+            self.writeIni()
+    
+    
+    ## Write information to voiceAtis.ini
+    def writeIni(self):
+        with open('voiceAtis.ini','w') as iniFile:
+            for k in self.iniOptions:
+                iniFile.write('{}={}\n'.format(k,self.iniOptions[k]))
     
     
 if __name__ == '__main__':
