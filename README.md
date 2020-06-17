@@ -143,7 +143,7 @@ See the [Credits](http://ourairports.com/about.html#credits) for a list of contr
 
 ## Changelog
 
-### version 0.3.1 -
+### version 0.4.0 - 17.06.2020
 * Support of airports with multiple AITS frequencies
     * Message is read, if one of the frequencies is tuned.
 * Support of ATIS broadcasted via NAV
