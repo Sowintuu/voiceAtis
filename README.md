@@ -72,10 +72,8 @@ To disable the default ATIS in P3D follow these steps:
 * Python 3.8 - 32 bit (due to pyuipc incompatibility with 64 bit)
 
 ### Installation
-* **currently not supported, will be updated eventually**
-    * For the latest version, clone the repository
+* Clone the repository
 * Get the latest python 3.8 ([Python releases](https://www.python.org/downloads/))
-* Run `pip install voiceAtis`
 
 ### Using pyinstaller.
 Build an executable using the following command:
