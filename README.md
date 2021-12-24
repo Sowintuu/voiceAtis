@@ -144,7 +144,7 @@ Behind the fun and features, OurAirports exists primarily as a public good. When
 See the [Credits](http://ourairports.com/about.html#credits) for a list of contributors.
 
 ## Changelog
-### version 0.5.0 - 19.12.2021
+### version 0.5.0 - upcoming
 * Large code refactor to comply with PEP8
 * Usage of fsuipc package instead of pyuipc package
 * Adjustment to Whazzup v2
