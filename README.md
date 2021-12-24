@@ -74,8 +74,8 @@ To disable the default ATIS in P3D follow these steps:
     * 64 bit for 64 bit simulators (e.g. XP11, newer versions of P3D)
 
 ### Installation
-* **currently not supported, will be updated**
-    * For the latest version, clone the repository
+* **Pip currently not supported, will be updated**
+* For the latest version, clone the repository
 * Get the latest python 3.9 ([Python releases](https://www.python.org/downloads/))
 * Run `pip install voiceAtis`
 
