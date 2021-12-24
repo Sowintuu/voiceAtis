@@ -10,10 +10,11 @@ uninstall.bat
 install*.bat
 voiceAtis/voiceAtis_compile.bat
 
-# Eclipse project files
+# Eclipse and pycharm project files
 .project
 .pydevproject
 .settings/
+.idea/
 
 # test file
 *test.py
