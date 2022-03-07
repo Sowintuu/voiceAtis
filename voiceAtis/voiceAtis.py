@@ -89,8 +89,9 @@ from VaLogger import VaLogger
 from voiceAtisUtil import parseVoiceInt, parseVoiceString, CHAR_TABLE, RWY_TABLE
 
 # Declaration at the beginning.
+print(' ')
 print('voiceAtis - Reads an ATIS from IVAO using voice generation')
-print('Copyright (C) 2018-2020  Oliver Clemens')
+# print('Copyright (C) 2018-2022  Oliver Clemens')
 print(' ')
 print('This program is free software: you can redistribute it and/or modify it under')
 print('the terms of the GNU General Public License as published by the Free Software')
@@ -105,7 +106,6 @@ print(' ')
 print('You should have received a copy of the GNU General Public License along with')
 print('this program. If not, see <https://www.gnu.org/licenses/>.')
 print(' ')
-print('This software uses ', end='')
 
 # Set encoding type.
 ENCODING_TYPE = 'utf-8'
@@ -137,6 +137,8 @@ class VoiceAtis(object):
     WHAZZUP_URL = 'https://api.ivao.aero/v2/tracker/whazzup'
     WHAZZUP_METAR_URL = 'http://wx.ivao.aero/metar.php'
     WHAZZUP_INTERVAL = 30  # seconds
+
+    NOAA_METAR_URL = 'http://tgftp.nws.noaa.gov/data/observations/metar/stations/<station>.TXT'
 
     OUR_AIRPORTS_URL = 'http://ourairports.com/data/'
 
@@ -1044,17 +1046,14 @@ class VoiceAtis(object):
 
     # Retrieves the metar of an airport independent of an ATIS.
     def get_airport_metar(self):
-        # TODO: Get other source than whazzup.
-        # Get the text of the file.
-        response = urllib.request.urlopen(self.WHAZZUP_METAR_URL)
+        response = urllib.request.urlopen(self.NOAA_METAR_URL.replace('<station>', self.airport))
         data = response.read()
         metar_text = data.decode(ENCODING_TYPE)
 
-        # Find the metar of the current airport.
-        metar_start = metar_text.find(self.airport)
-        metar_end = metar_text.find('\n', metar_start)
+        # Split at newline.
+        metar_text_split = metar_text.split('\n')
 
-        return metar_text[metar_start:metar_end]
+        return metar_text_split[1]
 
     # Get information from voiceAtis.ini file.
     # File is created if it doesn't exist.
